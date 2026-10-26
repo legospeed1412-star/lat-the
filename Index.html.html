@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0a3d91">
+<title>Lật thẻ tìm cặp</title>
+<style>
+:root{--bg:#fffbe8;--fg:#111;--card:#0a3d91;--cardfg:#fff;--face:#fff;--ok:#0b7a2b;--btn:#b30000;--btnfg:#fff;--bd:#111;--e:56px;--t:16px}
+:root[data-theme="dark"]{--bg:#000;--fg:#ffec00;--card:#1d5fd6;--ok:#12a63c;--btn:#ffec00;--btnfg:#000;--bd:#ffec00}
+html{font-size:20px}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:Arial,Helvetica,sans-serif;font-weight:700;text-align:center;
+padding:max(10px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(14px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left));
+touch-action:manipulation;-webkit-user-select:none;user-select:none}
+h1{font-size:1.5rem;margin:.2em 0}
+#msg{font-size:1.35rem;min-height:2.4em;margin:.2em 0;display:flex;align-items:center;justify-content:center;line-height:1.2}
+.bar{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:8px 0}
+button{font:inherit;font-size:1rem;background:var(--btn);color:var(--btnfg);border:4px solid var(--bd);border-radius:16px;padding:10px 16px;min-height:56px;cursor:pointer}
+button:focus-visible{outline:6px solid #f90}
+#grid{display:grid;gap:10px;max-width:1000px;margin:10px auto;justify-content:center}
+.c{background:var(--card);color:var(--cardfg);border:4px solid var(--bd);border-radius:18px;padding:4px;
+display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:var(--e);line-height:1}
+.c .e{font-size:var(--e);line-height:1.05}
+.c .t{font-size:var(--t);color:#000;line-height:1.1;margin-top:2px}
+.c.open{background:var(--face);color:#000}
+.c.done{background:var(--ok);color:#fff}
+.c.done .t{color:#fff}
+small{display:block;font-size:.8rem;opacity:.85;margin-top:6px}
+</style>
+</head>
+<body>
+<h1>🃏 Lật thẻ tìm cặp</h1>
+<div id="msg">Chọn mức chơi bên dưới</div>
+<div class="bar" id="levels">
+<button data-n="3">Dễ<br>6 thẻ</button>
+<button data-n="4">Vừa<br>8 thẻ</button>
+<button data-n="6">Khó<br>12 thẻ</button>
+<button data-n="12">Rất khó<br>24 thẻ</button>
+</div>
+<div id="grid"></div>
+<div class="bar">
+<button id="snd">🔊 Giọng nói: Bật</button>
+<button id="big">🔍 Chữ to hơn</button>
+<button id="th">🌗 Đổi màu nền</button>
+</div>
+<small>Không tính giờ. Chơi thong thả, nghỉ khi mệt.</small>
+<script>
+var ALL=[["🐱","Con mèo"],["🐶","Con chó"],["🍌","Quả chuối"],["🍎","Quả táo"],["🐔","Con gà"],["🐟","Con cá"],["🌻","Bông hoa"],["☀️","Mặt trời"],["🚗","Cái xe"],["🏠","Ngôi nhà"],["🍉","Quả dưa hấu"],["🐘","Con voi"]];
+var pend=null,voice=true,first=null,lock=false,pairs=0,found=0,AC=null;
+var msg=document.getElementById("msg"),grid=document.getElementById("grid");
+function say(t){msg.textContent=t;if(!voice||!window.speechSynthesis)return;try{speechSynthesis.cancel();var u=new SpeechSynthesisUtterance(t);u.lang="vi-VN";u.rate=.85;speechSynthesis.speak(u)}catch(e){}}
+function beep(f,d){try{AC=AC||new (window.AudioContext||window.webkitAudioContext)();var o=AC.createOscillator(),g=AC.createGain();o.frequency.value=f;g.gain.value=.15;o.connect(g);g.connect(AC.destination);o.start();o.stop(AC.currentTime+d)}catch(e){}}
+function layout(){
+if(!pairs)return;
+var N=pairs*2,gap=10,W=Math.min(window.innerWidth,1000)-26,H=Math.max(window.innerHeight*.66,300);
+var best=-1,cols=2,w=100,h=100;
+for(var c=2;c<=6;c++){
+var rows=Math.ceil(N/c),cw=(W-(c-1)*gap)/c,ch=(H-(rows-1)*gap)/rows,s=Math.min(cw,ch*1.15);
+if(s>best){best=s;cols=c;w=cw;h=Math.min(ch,cw*1.3)}}
+h=Math.max(h,84);
+grid.style.gridTemplateColumns="repeat("+cols+","+Math.floor(w)+"px)";
+var m=Math.min(w,h);
+var r=document.documentElement.style;
+r.setProperty("--e",Math.floor(m*.42)+"px");
+r.setProperty("--t",Math.max(13,Math.min(Math.floor(w*.13),26))+"px");
+var cs=grid.children;for(var i=0;i<cs.length;i++)cs[i].style.height=Math.floor(h)+"px";
+}
+function start(n){
+clearPend();pairs=n;found=0;first=null;lock=false;
+var s=ALL.slice().sort(function(){return Math.random()-.5}).slice(0,n);
+var deck=s.concat(s).sort(function(){return Math.random()-.5});
+grid.innerHTML="";
+deck.forEach(function(p){
+var b=document.createElement("button");b.className="c";b.setAttribute("aria-label","Thẻ úp");
+b.textContent="?";b.onclick=function(){flip(b,p)};grid.appendChild(b)});
+layout();
+say("Bắt đầu nhé. Hãy bấm vào một thẻ.");
+grid.scrollIntoView({behavior:"smooth",block:"start"});
+}
+function show(b,p){b.classList.add("open");b.innerHTML='<span class="e">'+p[0]+'</span><span class="t">'+p[1]+'</span>';b.setAttribute("aria-label",p[1])}
+function hide(b){b.classList.remove("open");b.textContent="?";b.setAttribute("aria-label","Thẻ úp")}
+function clearPend(){if(pend){clearTimeout(pend.t);hide(pend.a);hide(pend.b);pend=null;lock=false}}
+function flip(b,p){
+if(b.classList.contains("done"))return;
+if(pend){if(b===pend.a||b===pend.b)return;clearPend()}
+if(lock||b.classList.contains("open"))return;
+show(b,p);beep(520,.15);
+if(!first){first={b:b,p:p};say(p[1]+". Tìm thẻ giống vậy.");return}
+var a=first;first=null;lock=true;
+if(a.p[1]===p[1]){
+setTimeout(function(){a.b.classList.remove("open");b.classList.remove("open");a.b.classList.add("done");b.classList.add("done");
+beep(660,.15);setTimeout(function(){beep(880,.25)},150);found++;
+say(found===pairs?"Giỏi quá! Bạn đã tìm hết các cặp. Bấm chọn mức chơi để chơi tiếp.":"Đúng rồi! Giỏi quá! Còn "+(pairs-found)+" cặp.");
+lock=false},600);
+}else{
+say(p[1]+". Chưa giống, thử lại.");
+pend={a:a.b,b:b,t:setTimeout(clearPend,1800)};
+}}
+document.getElementById("levels").onclick=function(e){var t=e.target.closest("button");if(t)start(+t.dataset.n)};
+document.getElementById("snd").onclick=function(){voice=!voice;this.textContent="🔊 Giọng nói: "+(voice?"Bật":"Tắt");if(!voice&&window.speechSynthesis)speechSynthesis.cancel()};
+var fs=20;document.getElementById("big").onclick=function(){fs=fs>=28?18:fs+3;document.documentElement.style.fontSize=fs+"px"};
+var dk=window.matchMedia&&matchMedia("(prefers-color-scheme: dark)").matches;
+function applyTheme(){document.documentElement.setAttribute("data-theme",dk?"dark":"light")}
+applyTheme();
+document.getElementById("th").onclick=function(){dk=!dk;applyTheme()};
+window.addEventListener("resize",layout);window.addEventListener("orientationchange",function(){setTimeout(layout,200)});
+</script>
+</body>
+</html>
